@@ -1,0 +1,466 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>ROV Control & Settings</title>
+  <style>
+    * { box-sizing: border-box; user-select: none; }
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      background: #0b1120;
+      color: #f8fafc;
+      margin: 0;
+      padding: 18px;
+    }
+    .container { max-width: 1040px; margin: 0 auto; display: flex; flex-direction: column; gap: 16px; }
+
+    /* Top Header */
+    .header {
+      background: #1e293b; border: 1px solid #334155; border-radius: 10px;
+      padding: 14px 20px; display: flex; justify-content: space-between; align-items: center;
+    }
+    .header h1 { margin: 0; font-size: 1.6rem; color: #38bdf8; }
+    .status { font-size: 0.85rem; color: #94a3b8; margin-top: 4px; }
+    .header-actions { display: flex; gap: 8px; }
+    .btn { background: #2563eb; color: #fff; border: none; padding: 9px 16px; border-radius: 6px; font-weight: 700; cursor: pointer; }
+    .btn:hover { background: #1d4ed8; }
+    .btn.tab-btn { background: #0f172a; color: #cbd5e1; border: 1px solid #475569; }
+    .btn.tab-btn.active { background: #0284c7; border-color: #38bdf8; color: #fff; }
+    .btn.stop { background: #dc2626; }
+    .btn.save { background: #16a34a; padding: 11px 22px; }
+
+    .page { display: none; flex-direction: column; gap: 16px; }
+    .page.active { display: flex; }
+
+    /* 3-Column Control Deck */
+    .control-deck { display: grid; grid-template-columns: 1.3fr 1fr 1fr; gap: 16px; }
+    .card { background: #1e293b; border: 1px solid #334155; border-radius: 10px; padding: 16px; display: flex; flex-direction: column; align-items: center; justify-content: space-between; }
+    .card-title { font-size: 1rem; font-weight: 700; color: #e2e8f0; margin-bottom: 3px; }
+    .card-sub { font-size: 0.76rem; color: #94a3b8; margin-bottom: 12px; }
+
+    /* WASD */
+    .wasd-grid { display: grid; grid-template-columns: repeat(3, 72px); grid-template-rows: repeat(2, 72px); gap: 10px; margin: 10px 0; }
+    .key-box { background: #0f172a; border: 2px solid #475569; border-radius: 10px; display: flex; flex-direction: column; align-items: center; justify-content: center; font-family: monospace; font-size: 1.35rem; font-weight: 700; color: #f8fafc; cursor: pointer; }
+    .key-box span { font-size: 0.66rem; font-family: system-ui, sans-serif; color: #94a3b8; font-weight: 500; margin-top: 3px; }
+    .key-box.active { background: #22c55e; border-color: #4ade80; color: #052e16; transform: scale(0.95); }
+
+    /* Vertical Bars */
+    .bar-wrapper { display: flex; align-items: center; gap: 16px; margin: 6px 0; }
+    .key-col { display: flex; flex-direction: column; justify-content: space-between; height: 196px; }
+    .key-small { width: 62px; height: 62px; font-size: 1.2rem; }
+    .v-bar-container { width: 46px; height: 196px; background: #0f172a; border: 2px solid #475569; border-radius: 8px; position: relative; overflow: hidden; }
+    .v-bar-fill-bottom { position: absolute; bottom: 0; left: 0; width: 100%; height: 0%; background: linear-gradient(180deg, #38bdf8, #0284c7); transition: height 0.08s ease-out; }
+    .v-bar-center-line { position: absolute; top: 50%; left: 0; width: 100%; height: 2px; background: #94a3b8; z-index: 2; }
+    .v-bar-fill-center { position: absolute; left: 0; width: 100%; top: 50%; height: 0%; background: #f59e0b; }
+    .scale-labels { display: flex; flex-direction: column; justify-content: space-between; height: 196px; font-family: monospace; font-size: 0.78rem; color: #94a3b8; }
+    
+    .readout-pill { margin-top: 10px; background: #0f172a; border: 1px solid #334155; padding: 6px 12px; border-radius: 6px; font-family: monospace; font-size: 0.88rem; color: #38bdf8; text-align: center; width: 100%; }
+
+    /* Control Matrix Strip */
+    .matrix-strip { background: #1e293b; border: 1px solid #334155; border-radius: 10px; padding: 12px 18px; display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; text-align: center; font-family: monospace; }
+    .matrix-item { background: #0f172a; padding: 8px; border-radius: 6px; border: 1px solid #334155; }
+    .matrix-label { font-size: 0.72rem; color: #94a3b8; display: block; }
+    .matrix-val { font-size: 1.1rem; font-weight: 700; color: #4ade80; }
+    .matrix-sub { font-size: 0.72rem; color: #64748b; display: block; margin-top: 2px; }
+
+    /* Telemetry Panels (IMU, Depth, GPS) */
+    .sensor-strip { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; }
+    .sensor-card { background: #1e293b; border: 1px solid #334155; border-radius: 10px; padding: 14px 16px; font-family: monospace; }
+    .sensor-header { font-family: system-ui, sans-serif; font-size: 0.95rem; font-weight: 700; color: #e2e8f0; border-bottom: 1px solid #334155; padding-bottom: 6px; margin-bottom: 8px; }
+    .sensor-row { display: flex; justify-content: space-between; font-size: 0.85rem; color: #cbd5e1; margin-bottom: 4px; }
+    .sensor-val { color: #4ade80; font-weight: 700; }
+    .sensor-highlight { font-size: 1.1rem; color: #38bdf8; font-weight: 700; margin-top: 6px; display: block; text-align: right; }
+
+    /* Serial Terminal */
+    .terminal-card { background: #1e293b; border: 1px solid #334155; border-radius: 10px; padding: 14px 16px; }
+    #terminal { background: #050811; color: #38bdf8; font-family: monospace; font-size: 0.84rem; height: 180px; overflow-y: auto; padding: 10px; border-radius: 6px; border: 1px solid #334155; white-space: pre-wrap; }
+    .tx-line { color: #64748b; }
+    .sys-line { color: #f59e0b; }
+
+    /* Settings */
+    .settings-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    .settings-card { background: #1e293b; border: 1px solid #334155; border-radius: 10px; padding: 18px; }
+    .settings-card h3 { margin: 0 0 14px 0; font-size: 1.05rem; color: #38bdf8; border-bottom: 1px solid #334155; padding-bottom: 8px; }
+    .form-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 11px; gap: 10px; }
+    .form-row label { font-size: 0.85rem; color: #cbd5e1; }
+    .form-row input[type="number"], .form-row select { background: #0f172a; border: 1px solid #475569; color: #f8fafc; padding: 6px 10px; border-radius: 6px; width: 115px; font-family: monospace; text-align: right; }
+    .settings-footer { background: #1e293b; border: 1px solid #334155; border-radius: 10px; padding: 14px 20px; display: flex; justify-content: space-between; align-items: center; }
+  </style>
+</head>
+<body>
+
+<div class="container">
+  <div class="header">
+    <div>
+      <h1>ROV Control</h1>
+      <div class="status" id="connStatus">Disconnected — Connect 433MHz Radio</div>
+    </div>
+    <div class="header-actions">
+      <button class="btn tab-btn active" id="tabBtnControl" onclick="switchPage('control')">Control</button>
+      <button class="btn tab-btn" id="tabBtnSettings" onclick="switchPage('settings')">Settings</button>
+      <button class="btn" onclick="connectRadio()">Connect Radio</button>
+      <button class="btn stop" onclick="emergencyReset()">E-STOP (Space)</button>
+    </div>
+  </div>
+
+  <!-- PAGE 1: CONTROL -->
+  <div class="page active" id="pageControl">
+
+    <div class="control-deck">
+      <!-- 1. WASD -->
+      <div class="card">
+        <div><div class="card-title">Surge & Yaw (WASD)</div></div>
+        <div class="wasd-grid">
+          <div></div><div class="key-box" id="keyW">W<span>Forward +</span></div><div></div>
+          <div class="key-box" id="keyA">A<span>Yaw L -</span></div><div class="key-box" id="keyS">S<span>Back -</span></div><div class="key-box" id="keyD">D<span>Yaw R +</span></div>
+        </div>
+        <div class="readout-pill">Surge: <span id="valSurge">0</span>% | Yaw: <span id="valYaw">0</span>%</div>
+      </div>
+
+      <!-- 2. J/I/N Ballast -->
+      <div class="card">
+        <div><div class="card-title">Ballast / Heave (J/I/N)</div></div>
+        <div class="bar-wrapper">
+          <div class="key-col">
+            <div class="key-box key-small" id="keyJ" onclick="stepBallast(1)">J</div>
+            <div class="key-box key-small" id="keyI" style="height:44px; font-size:0.95rem;" onclick="setNeutralBallast()">I</div>
+            <div class="key-box key-small" id="keyN" onclick="stepBallast(-1)">N</div>
+          </div>
+          <div class="v-bar-container"><div class="v-bar-fill-bottom" id="barBallast"></div></div>
+          <div class="scale-labels"><span>100</span><span>50</span><span>0</span></div>
+        </div>
+        <div class="readout-pill">Target Heave: <span id="valHeave">0</span>%</div>
+      </div>
+
+      <!-- 3. K/M Pitch -->
+      <div class="card">
+        <div><div class="card-title">Dive Planes (K/M)</div></div>
+        <div class="bar-wrapper">
+          <div class="key-col">
+            <div class="key-box key-small" id="keyK">K</div>
+            <div class="key-box key-small" id="keyM">M</div>
+          </div>
+          <div class="v-bar-container"><div class="v-bar-center-line"></div><div class="v-bar-fill-center" id="barPitch"></div></div>
+          <div class="scale-labels"><span id="scalePitchUp">+45°</span><span>0°</span><span id="scalePitchDown">-45°</span></div>
+        </div>
+        <div class="readout-pill">Target Pitch: <span id="valPitch">0.0</span>°</div>
+      </div>
+    </div>
+
+    <!-- Live Control Matrix Output Strip (thrusters, planes, rudder, ballast) -->
+    <div class="matrix-strip">
+      <div class="matrix-item">
+        <span class="matrix-label">LEFT THRUSTER (Surge + Yaw)</span>
+        <span class="matrix-val" id="matLeft">0%</span>
+        <span class="matrix-sub" id="matLeftPwm">0 µs</span>
+      </div>
+      <div class="matrix-item">
+        <span class="matrix-label">RIGHT THRUSTER (Surge - Yaw)</span>
+        <span class="matrix-val" id="matRight">0%</span>
+        <span class="matrix-sub" id="matRightPwm">0 µs</span>
+      </div>
+      <div class="matrix-item">
+        <span class="matrix-label">DIVE PLANES (-Pitch)</span>
+        <span class="matrix-val" id="matPlanes">0.0°</span>
+      </div>
+      <div class="matrix-item">
+        <span class="matrix-label">RUDDER (Yaw)</span>
+        <span class="matrix-val" id="matRudder">0</span>
+      </div>
+      <div class="matrix-item">
+        <span class="matrix-label">BALLAST (Heave)</span>
+        <span class="matrix-val" id="matBallast">0%</span>
+      </div>
+    </div>
+
+    <!-- Live Telemetry Sensor Strip -->
+    <div class="sensor-strip">
+      <div class="sensor-card">
+        <div class="sensor-header">MPU6050 IMU</div>
+        <div class="sensor-row">Accel (g) <span class="sensor-val" id="telAccel">X:0.0 Y:0.0 Z:0.0</span></div>
+        <div class="sensor-row">Gyro (°/s) <span class="sensor-val" id="telGyro">X:0 Y:0 Z:0</span></div>
+        <div class="sensor-row" style="margin-top:10px; border-top:1px solid #334155; padding-top:6px;">Filtered Pitch / Roll</div>
+        <span class="sensor-highlight" id="telPitchRoll">P: 0.0° | R: 0.0°</span>
+      </div>
+      <div class="sensor-card">
+        <div class="sensor-header">Analog Depth Sensor</div>
+        <div class="sensor-row">Raw Voltage <span class="sensor-val" id="telVolts">0.00 V</span></div>
+        <div class="sensor-row">Pressure <span class="sensor-val" id="telKpa">0.0 kPa</span></div>
+        <div class="sensor-row" style="margin-top:10px; border-top:1px solid #334155; padding-top:6px;">Calculated Depth</div>
+        <span class="sensor-highlight" id="telDepth">0.00 m</span>
+      </div>
+      <div class="sensor-card">
+        <div class="sensor-header">GPS Module</div>
+        <div class="sensor-row">Satellites <span class="sensor-val">0</span></div>
+        <div class="sensor-row">Lat/Lon <span class="sensor-val">--.----, --.----</span></div>
+        <div class="sensor-row" style="margin-top:10px; border-top:1px solid #334155; padding-top:6px;">Status</div>
+        <span class="sensor-highlight" style="color:#f59e0b;">No Fix</span>
+      </div>
+    </div>
+
+    <div class="terminal-card">
+      <div style="display:flex; justify-content:space-between; margin-bottom:8px;">
+        <strong>Raw Radio Monitor</strong>
+        <div>
+          <label style="font-size:0.82rem; color:#94a3b8; margin-right:12px;"><input type="checkbox" id="showTx"> Show TX</label>
+          <button class="btn" style="padding:4px 10px; font-size:0.8rem;" onclick="document.getElementById('terminal').innerHTML=''">Clear</button>
+        </div>
+      </div>
+      <div id="terminal">Waiting for telemetry...&#10;</div>
+    </div>
+  </div>
+
+  <!-- PAGE 2: SETTINGS -->
+  <div class="page" id="pageSettings">
+    <div class="settings-grid">
+      
+      <!-- Card 1: Thruster ESCs (unidirectional) -->
+      <div class="settings-card">
+        <h3>1. Brushless ESC Configuration (Unidirectional)</h3>
+        <div class="form-row"><label>Min PWM (µs) — thruster off</label><input type="number" id="cfgEscMin" step="1"></div>
+        <div class="form-row"><label>Max PWM (µs) — full thrust</label><input type="number" id="cfgEscMax" step="1"></div>
+        <div class="form-row"><label>Left Trim / Right Trim (%)</label><div style="display:flex; gap:4px;"><input type="number" id="cfgLeftTrim" style="width:60px;"><input type="number" id="cfgRightTrim" style="width:60px;"></div></div>
+      </div>
+
+      <!-- Card 2: Pitch & Dive Planes -->
+      <div class="settings-card">
+        <h3>2. Dive Planes (Pitch)</h3>
+        <div class="form-row"><label>Servo Neutral Angle (0-180°)</label><input type="number" id="cfgPlaneNeutral"></div>
+        <div class="form-row"><label>Max Climb (+) / Dive (-) Limits (°)</label><div style="display:flex; gap:4px;"><input type="number" id="cfgPitchMaxUp" style="width:60px;"><input type="number" id="cfgPitchMaxDown" style="width:60px;"></div></div>
+        <div class="form-row"><label>Pitch Slew Time (0 to Max in Sec)</label><input type="number" id="cfgPitchSlewSec"></div>
+      </div>
+
+      <!-- Card 3: Ballast -->
+      <div class="settings-card">
+        <h3>3. Ballast Tank & Radio</h3>
+        <div class="form-row"><label>J/N Step Size (%)</label><input type="number" id="cfgBallastStep"></div>
+        <div class="form-row"><label>Neutral Hover Preset on 'I' (%)</label><input type="number" id="cfgBallastNeutral"></div>
+        <div class="form-row"><label>Radio Command Rate (ms)</label><input type="number" id="cfgTxInterval"></div>
+      </div>
+
+      <!-- Card 4: Analog Depth Sensor -->
+      <div class="settings-card">
+        <h3>4. Depth Sensor (Analog 3.3V ADC)</h3>
+        <div class="form-row"><label>Voltage Divider Ratio (Vin / Vout)</label><input type="number" id="cfgDepthVDiv" step="0.01"></div>
+        <div class="form-row"><label>Zero-Pressure Sensor Offset (V)</label><input type="number" id="cfgDepthOffset" step="0.001"></div>
+        <div class="form-row"><label>Pressure Multiplier (kPa / Volt)</label><input type="number" id="cfgDepthMult" step="1"></div>
+        <div class="form-row"><label>Water Density (kg/m³ - 1000/1025)</label><input type="number" id="cfgWaterDensity" step="1"></div>
+      </div>
+
+      <!-- Card 5: MPU6050 IMU -->
+      <div class="settings-card">
+        <h3>5. MPU6050 IMU Trim</h3>
+        <div class="form-row"><label>Accel Offsets (X, Y, Z)</label><div style="display:flex; gap:4px;"><input type="number" id="cfgAxTrim" style="width:50px;" step="0.01"><input type="number" id="cfgAyTrim" style="width:50px;" step="0.01"><input type="number" id="cfgAzTrim" style="width:50px;" step="0.01"></div></div>
+        <div class="form-row"><label>Gyro Offsets (X, Y, Z)</label><div style="display:flex; gap:4px;"><input type="number" id="cfgGxTrim" style="width:50px;" step="1"><input type="number" id="cfgGyTrim" style="width:50px;" step="1"><input type="number" id="cfgGzTrim" style="width:50px;" step="1"></div></div>
+        <div class="form-row"><label>Comp Filter Alpha (0.90 to 0.99)</label><input type="number" id="cfgImuAlpha" step="0.01"></div>
+      </div>
+
+      <!-- Card 6: Rudder -->
+      <div class="settings-card">
+        <h3>6. Rudder (Yaw Servo)</h3>
+        <div class="form-row"><label>Servo Neutral Angle (0-180°)</label><input type="number" id="cfgRudderNeutral" step="1"></div>
+        <div class="form-row"><label>Max Left / Right Deflection (°)</label><div style="display:flex; gap:4px;"><input type="number" id="cfgRudderMaxLeft" style="width:60px;" step="1"><input type="number" id="cfgRudderMaxRight" style="width:60px;" step="1"></div></div>
+        <div class="form-row"><label>Direction</label><select id="cfgRudderInvert"><option value="0">Normal</option><option value="1">Inverted</option></select></div>
+      </div>
+
+    </div>
+    <div class="settings-footer">
+      <button class="btn reset" onclick="resetDefaultSettings()" style="background:#475569;">Reset Defaults</button>
+      <button class="btn save" onclick="saveAndApplySettings()">Update Settings & Send to ESP32</button>
+    </div>
+  </div>
+</div>
+
+<script>
+  // CONFIG & STATE
+  const DEFAULT_CFG = {
+    escMin: 1000, escMax: 2000, leftTrim: 100, rightTrim: 100,
+    planeNeutral: 90, pitchMaxUp: 45, pitchMaxDown: 45, pitchSlewSec: 2.0,
+    ballastStep: 5, ballastNeutral: 50, txInterval: 100,
+    depthVDiv: 1.5, depthOffset: 0.483, depthMult: 250.0, waterDensity: 1000,
+    axTrim: 0.0, ayTrim: 0.0, azTrim: 0.0, gxTrim: 0, gyTrim: 0, gzTrim: 0, imuAlpha: 0.96,
+    rudderNeutral: 90, rudderMaxLeft: 30, rudderMaxRight: 30, rudderInvert: 0
+  };
+  const CFG_KEYS = ['escMin','escMax','leftTrim','rightTrim','planeNeutral','pitchMaxUp','pitchMaxDown','pitchSlewSec','ballastStep','ballastNeutral','txInterval','depthVDiv','depthOffset','depthMult','waterDensity','axTrim','ayTrim','azTrim','gxTrim','gyTrim','gzTrim','imuAlpha','rudderNeutral','rudderMaxLeft','rudderMaxRight','rudderInvert'];
+  let cfg = { ...DEFAULT_CFG };
+
+  const keys = { KeyW:false, KeyS:false, KeyA:false, KeyD:false, KeyK:false, KeyM:false };
+  let surge = 0, yaw = 0, heave = 0, pitch = 0.0;
+  let port, writer, txTimer;
+  let outLeftPwm = 1000, outRightPwm = 1000, outPlaneDeg = 90, outRudderDeg = 90; // final actuator values sent in CMD
+  const DT = 0.02; // 50Hz Loop
+
+  function switchPage(page) {
+    const isCtrl = (page === 'control');
+    document.getElementById('pageControl').classList.toggle('active', isCtrl);
+    document.getElementById('pageSettings').classList.toggle('active', !isCtrl);
+    document.getElementById('tabBtnControl').classList.toggle('active', isCtrl);
+    document.getElementById('tabBtnSettings').classList.toggle('active', !isCtrl);
+  }
+
+  function loadSettings() {
+    const saved = localStorage.getItem('rov_cfg_v3');
+    if(saved) { try { cfg = { ...DEFAULT_CFG, ...JSON.parse(saved) }; } catch(e){} }
+    CFG_KEYS.forEach(k => {
+      document.getElementById('cfg'+k.charAt(0).toUpperCase()+k.slice(1)).value = cfg[k];
+    });
+  }
+
+  function saveAndApplySettings() {
+    CFG_KEYS.forEach(k => {
+      cfg[k] = Number(document.getElementById('cfg'+k.charAt(0).toUpperCase()+k.slice(1)).value);
+    });
+    if(cfg.escMin >= cfg.escMax) { alert('Min PWM must be lower than Max PWM.'); return; }
+    localStorage.setItem('rov_cfg_v3', JSON.stringify(cfg));
+    if(writer) clearInterval(txTimer);
+    if(writer) txTimer = setInterval(sendCmdPacket, cfg.txInterval);
+    sendSettingsPacket(); // Push new IMU/Depth/ESC configs to ESP32
+    switchPage('control');
+  }
+
+  function resetDefaultSettings() { cfg = { ...DEFAULT_CFG }; localStorage.removeItem('rov_cfg_v3'); loadSettings(); }
+
+  // INPUT
+  function stepBallast(dir) { heave = Math.max(0, Math.min(100, heave + dir * cfg.ballastStep)); }
+  function setNeutralBallast() { heave = cfg.ballastNeutral; }
+
+  window.addEventListener('keydown', e => {
+    if(e.code === 'Space') { emergencyReset(); return; }
+    if(e.code === 'KeyJ' && !e.repeat) { stepBallast(1); document.getElementById('keyJ').classList.add('active'); return; }
+    if(e.code === 'KeyI' && !e.repeat) { setNeutralBallast(); document.getElementById('keyI').classList.add('active'); return; }
+    if(e.code === 'KeyN' && !e.repeat) { stepBallast(-1); document.getElementById('keyN').classList.add('active'); return; }
+    if(keys.hasOwnProperty(e.code)) { keys[e.code] = true; document.getElementById(e.code.replace('Key','key')).classList.add('active'); }
+  });
+  window.addEventListener('keyup', e => {
+    if(e.code === 'KeyJ') document.getElementById('keyJ').classList.remove('active');
+    if(e.code === 'KeyI') document.getElementById('keyI').classList.remove('active');
+    if(e.code === 'KeyN') document.getElementById('keyN').classList.remove('active');
+    if(keys.hasOwnProperty(e.code)) { keys[e.code] = false; document.getElementById(e.code.replace('Key','key')).classList.remove('active'); }
+  });
+  function emergencyReset() { Object.keys(keys).forEach(k => keys[k]=false); document.querySelectorAll('.key-box').forEach(el=>el.classList.remove('active')); surge=0; yaw=0; heave=0; pitch=0.0; }
+
+  // Unidirectional thruster mapping: 0-100% -> Min..Max PWM (trim applied)
+  function thrusterPwm(pct, trim) {
+    const scaled = Math.max(0, Math.min(100, pct * trim / 100));
+    return Math.round(cfg.escMin + (scaled / 100) * (cfg.escMax - cfg.escMin));
+  }
+
+  // PHYSICS LOOP (50Hz)
+  setInterval(() => {
+    surge = (keys.KeyW ? 100 : 0) + (keys.KeyS ? -100 : 0);
+    yaw   = (keys.KeyD ? 100 : 0) + (keys.KeyA ? -100 : 0);
+    let tgtPitch = (keys.KeyK && !keys.KeyM) ? cfg.pitchMaxUp : ((keys.KeyM && !keys.KeyK) ? -cfg.pitchMaxDown : 0);
+    let step = (Math.max(cfg.pitchMaxUp, cfg.pitchMaxDown) / cfg.pitchSlewSec) * DT;
+    if(Math.abs(tgtPitch - pitch) <= step) pitch = tgtPitch; else pitch += (pitch < tgtPitch) ? step : -step;
+
+    // Control matrix (thrusters are unidirectional: clamp 0..100, no reverse)
+    let leftThruster  = Math.max(0, Math.min(100, surge + yaw));
+    let rightThruster = Math.max(0, Math.min(100, surge - yaw));
+    let divePlanes    = -pitch;
+    let rudder        = yaw;
+
+    // Final actuator values (computed here from Settings, sent to ESP32 in the CMD packet)
+    outLeftPwm  = thrusterPwm(leftThruster, cfg.leftTrim);
+    outRightPwm = thrusterPwm(rightThruster, cfg.rightTrim);
+    outPlaneDeg = Math.max(0, Math.min(180, cfg.planeNeutral - pitch));
+    let yawFrac = yaw / 100;
+    let rudOffset = (yawFrac >= 0 ? yawFrac * cfg.rudderMaxRight : yawFrac * cfg.rudderMaxLeft) * (cfg.rudderInvert ? -1 : 1);
+    outRudderDeg = Math.max(0, Math.min(180, cfg.rudderNeutral + rudOffset));
+
+    document.getElementById('valSurge').innerText = surge; document.getElementById('valYaw').innerText = yaw;
+    document.getElementById('valHeave').innerText = heave; document.getElementById('valPitch').innerText = pitch.toFixed(1);
+    document.getElementById('barBallast').style.height = heave + '%';
+
+    document.getElementById('matLeft').innerText     = leftThruster + '%';
+    document.getElementById('matLeftPwm').innerText  = outLeftPwm + ' µs';
+    document.getElementById('matRight').innerText    = rightThruster + '%';
+    document.getElementById('matRightPwm').innerText = outRightPwm + ' µs';
+    document.getElementById('matPlanes').innerText   = divePlanes.toFixed(1) + '°';
+    document.getElementById('matRudder').innerText   = rudder;
+    document.getElementById('matBallast').innerText  = heave + '%';
+    
+    let pBar = document.getElementById('barPitch');
+    let pct = (Math.abs(pitch) / Math.max(1, (pitch>=0 ? cfg.pitchMaxUp : cfg.pitchMaxDown))) * 50;
+    pBar.style.height = Math.min(50, pct) + '%';
+    pBar.style.top = pitch>=0 ? (50-pct)+'%' : '50%';
+    pBar.style.background = pitch>=0 ? '#22c55e' : '#f59e0b';
+  }, 20);
+
+  // WEBSERIAL
+  async function connectRadio() {
+    try {
+      port = await navigator.serial.requestPort();
+      await port.open({ baudRate: 57600 });
+      document.getElementById('connStatus').innerText = 'Connected @ 57600 baud';
+      document.getElementById('connStatus').style.color = '#4ade80';
+      writer = port.writable.getWriter();
+      readAirMessages();
+      txTimer = setInterval(sendCmdPacket, cfg.txInterval);
+      setTimeout(sendSettingsPacket, 500); // Send config to ESP once connected
+    } catch(e) { alert(e); }
+  }
+
+  async function sendCmdPacket() {
+    if(!writer) return;
+    // CMD,Surge,Yaw,Heave,Pitch,LeftUs,RightUs,PlaneDeg,RudderDeg
+    let pkt = `CMD,${surge},${yaw},${heave},${pitch.toFixed(1)},${outLeftPwm},${outRightPwm},${outPlaneDeg.toFixed(1)},${outRudderDeg.toFixed(1)}\n`;
+    await writer.write(new TextEncoder().encode(pkt));
+    if(document.getElementById('showTx').checked) appendTerminal(pkt.trim(), 'tx-line');
+  }
+
+  async function sendSettingsPacket() {
+    if(!writer) return;
+    // Push critical IMU and Depth configs to ESP32
+    let pkt = `CFG,${cfg.depthVDiv},${cfg.depthOffset},${cfg.depthMult},${cfg.waterDensity},${cfg.axTrim},${cfg.ayTrim},${cfg.azTrim},${cfg.gxTrim},${cfg.gyTrim},${cfg.gzTrim},${cfg.imuAlpha}\n`;
+    await writer.write(new TextEncoder().encode(pkt));
+    appendTerminal(`[SENT CFG TO ESP32]`, 'sys-line');
+  }
+
+  async function readAirMessages() {
+    const textDecoder = new TextDecoderStream();
+    port.readable.pipeTo(textDecoder.writable);
+    const reader = textDecoder.readable.getReader();
+    let buffer = '';
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      buffer += value;
+      let lines = buffer.split('\n');
+      buffer = lines.pop();
+      lines.forEach(parseTelemetryLine);
+    }
+  }
+
+  function parseTelemetryLine(line) {
+    line = line.trim();
+    if(line.length === 0) return;
+    appendTerminal(line);
+
+    // Parse TELEM,Ax,Ay,Az,Gx,Gy,Gz,Pitch,Roll,Vraw,kPa,DepthM
+    if(line.startsWith("TELEM,")) {
+      let pts = line.split(',');
+      if(pts.length >= 13) {
+        document.getElementById('telAccel').innerText = `X:${pts[1]} Y:${pts[2]} Z:${pts[3]}`;
+        document.getElementById('telGyro').innerText  = `X:${pts[4]} Y:${pts[5]} Z:${pts[6]}`;
+        document.getElementById('telPitchRoll').innerText = `P: ${pts[7]}° | R: ${pts[8]}°`;
+        document.getElementById('telVolts').innerText = `${pts[9]} V`;
+        document.getElementById('telKpa').innerText   = `${pts[10]} kPa`;
+        document.getElementById('telDepth').innerText = `${pts[11]} m`;
+      }
+    }
+  }
+
+  function appendTerminal(text, cls) {
+    const term = document.getElementById('terminal');
+    const div = document.createElement('div');
+    if(cls) div.className = cls;
+    div.innerText = text;
+    term.appendChild(div);
+    if(term.childNodes.length > 150) term.removeChild(term.firstChild);
+    term.scrollTop = term.scrollHeight;
+  }
+
+  loadSettings();
+</script>
+</body>
+</html>
